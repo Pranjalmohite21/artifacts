@@ -1,0 +1,70 @@
+build_frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm install
+          npm run build
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-build
+          path: frontend/build/
+
+  # 3. Build backend job and upload artifact
+  build_backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build backend
+        run: |
+          cd backend
+          ./build-script.sh  # Replace with your build command
+
+      - name: Upload backend artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-build
+          path: backend/build/
+
+  # 3 & 4. Deploy job downloads artifacts, builds docker, deploys to staging by default, allows manual promotion to production
+  deploy:
+    needs: [build_frontend, build_backend]
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: frontend-build
+          path: deploy/frontend
+
+      - name: Download backend artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: backend-build
+          path: deploy/backend
+
+      - name: Build Docker image
+        run: docker build -t my-app .
+
+      - name: Deploy to staging
+        run: echo "Deploying to staging environment..."
+
+  promote_to_production:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_to == 'production'
+    needs: deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - name: Manual approval to production
+        run: echo "Promoting deployment to production..."
